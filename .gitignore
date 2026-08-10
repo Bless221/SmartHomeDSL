@@ -9,3 +9,7 @@ obj/
 
 # Rider
 .idea/ 
+
+.env
+appsettings.json
+appsettings.Development.json
