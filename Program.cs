@@ -33,9 +33,9 @@ namespace SmartHomeDSL
                 return;
             }
 
-            string sensorId = match.Groups["sensor"].Value;
+            string sensorId = match.Groups["sensor"].Value.ToLower();
             double threshold = double.Parse(match.Groups["threshold"].Value, System.Globalization.CultureInfo.InvariantCulture);
-            string deviceId = match.Groups["device"].Value;
+            string deviceId = match.Groups["device"].Value.ToLower();
             bool targetState = string.Equals(match.Groups["state"].Value, "ON", StringComparison.OrdinalIgnoreCase);
 
             try
@@ -56,31 +56,34 @@ namespace SmartHomeDSL
             double? lastValue = GetLastSensorValue(connection, sensorId);
             if (lastValue == null)
             {
-                Console.WriteLine($"Нет данных для датчика {sensorId}.");
+                Console.WriteLine($"[ERROR] Датчик не найден: {sensorId}");
                 return;
             }
 
-            Console.WriteLine($"Последнее значение {sensorId}: {lastValue}");
+            Console.WriteLine($"[LOG] Датчик '{sensorId}' -> Текущее значение: {lastValue:F2}");
+            Console.WriteLine($"[LOG] Пороговое значение: {threshold:F2}");
 
             if (lastValue.Value > threshold)
             {
+                Console.WriteLine($"[LOG] Условие выполнено: {lastValue:F2} > {threshold}");
                 UpdateDeviceState(connection, deviceId, targetState);
                 InsertDeviceHistory(connection, deviceId, targetState, lastValue.Value, sensorId, threshold);
-                Console.WriteLine($"Устройство {deviceId} переведено в состояние {(targetState ? "ON" : "OFF")}.");
+                Console.WriteLine($"[SUCCESS] Устройство '{deviceId}' переведено в состояние {(targetState ? "ON" : "OFF")}");
             }
             else
             {
-                Console.WriteLine("Условие не выполнено, действие не требуется.");
+                Console.WriteLine($"[LOG] Условие НЕ выполнено: {lastValue:F2} <= {threshold}");
+                Console.WriteLine($"[INFO] Действие не требуется");
             }
         }
 
         private static double? GetLastSensorValue(NpgsqlConnection connection, string sensorId)
         {
             const string sql = @"
-                SELECT ""Value""
-                FROM ""SensorHistory""
-                WHERE ""SensorId"" = @sensorId
-                ORDER BY ""Timestamp"" DESC
+                SELECT ""value""
+                FROM ""sensorhistory""
+                WHERE ""sensorid"" = @sensorId
+                ORDER BY ""timestamp"" DESC
                 LIMIT 1;";
 
             using var cmd = new NpgsqlCommand(sql, connection);
@@ -93,9 +96,9 @@ namespace SmartHomeDSL
         private static void UpdateDeviceState(NpgsqlConnection connection, string deviceId, bool isActive)
         {
             const string sql = @"
-                UPDATE ""Devices""
-                SET is_active = @isActive
-                WHERE ""DeviceId"" = @deviceId;";
+                UPDATE ""devices""
+                SET ""is_active"" = @isActive
+                WHERE ""deviceid"" = @deviceId;";
 
             using var cmd = new NpgsqlCommand(sql, connection);
             cmd.Parameters.AddWithValue("isActive", isActive);
@@ -106,10 +109,10 @@ namespace SmartHomeDSL
         private static void InsertDeviceHistory(NpgsqlConnection connection, string deviceId, bool isActive, double sensorValue, string sensorId, double threshold)
         {
             const string sql = @"
-                INSERT INTO ""DeviceStateHistory"" (""DeviceId"", ""IsActive"", ""ChangedAt"", ""Reason"")
+                INSERT INTO ""devicestatehistory"" (""deviceid"", ""isactive"", ""changedat"", ""reason"")
                 VALUES (@deviceId, @isActive, @changedAt, @reason);";
 
-            string reason = $"Sensor {sensorId} value {sensorValue} exceeded threshold {threshold}";
+            string reason = $"Sensor {sensorId} value {sensorValue:F2} exceeded threshold {threshold:F2}";
 
             using var cmd = new NpgsqlCommand(sql, connection);
             cmd.Parameters.AddWithValue("deviceId", deviceId);
