@@ -6,8 +6,20 @@ namespace SmartHomeDSL
 {
     class Program
     {
-        private const string ConnectionString =
-            "Host=localhost;Database=SmartHomeDB;Username=postgres;Password=2201;";
+        private static readonly string ConnectionString = BuildConnectionString();
+
+private static string BuildConnectionString()
+{
+    string password = Environment.GetEnvironmentVariable("SMARTHOME_DB_PASSWORD");
+    if (string.IsNullOrEmpty(password))
+    {
+        throw new InvalidOperationException(
+            "Environment variable SMARTHOME_DB_PASSWORD is not set. " +
+            "Please set it before running the application.");
+    }
+
+    return $"Host=localhost;Database=SmartHomeDB;Username=postgres;Password={password};";
+}
 
         private static readonly Regex DslPattern = new Regex(
             @"^IF\s+(?<sensor>\w+)\s*>\s*(?<threshold>[\d.]+)\s+THEN\s+SET\s+(?<device>\w+)\s*=\s*(?<state>ON|OFF)$",
